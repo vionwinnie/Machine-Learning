@@ -1,0 +1,68 @@
+---
+title: "Machine Learning Project"
+author: "Winnie Yeung"
+date: "13 March, 2016"
+output: html_document
+---
+Introduction
+
+This is where I preset the working conditions to speed things up when building the model. 
+
+```{r,warning=FALSE}
+library(parallel)
+library(doParallel)
+library(caret)
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+fitControl <- trainControl(method = "cv",
+                           number = 10,
+                           allowParallel = TRUE)
+```
+Reading and Cleaning Data
+
+Now I run the training, testing, and validation set. I have decided to exclude extraneous timestamp and columns that has a majority of NAs in the datasets. So I have to clean it up before I run it.
+
+```{r}
+original <- read.csv("pml-training.csv")
+validation <- read.csv("pml-testing.csv")
+
+inBuild <- createDataPartition(y=original$classe,
+                               p=0.7, list=FALSE)
+training <- original[-inBuild,]; testing <- original[inBuild,]
+training <- training[,-1]
+testing <- testing[,-1]
+validation <- validation[,-1]
+indexing <- !colSums(is.na(validation))
+training <- training[,indexing==TRUE]
+training <- training[,-c(3,4,5)]
+testing <- testing[,indexing==TRUE]
+testing <- testing[,-c(3,4,5)]
+validation <- validation[,indexing==TRUE]
+validation <- validation[,-c(3,4,5)]
+```
+
+Training the data
+
+I decided to try both gbm method and lda method to train the data and test its accuracy.
+```{r,warning=FALSE,results="hide"}
+library(randomForest)
+mod2 <- train(classe ~ .,data=training,method="gbm",trControl = fitControl)
+mod3 <- train(classe ~ .,data=training,method="lda",trControl = fitControl)
+
+gbmresult <- predict(mod2, testing)
+ldaresult <- predict(mod3, testing)
+cmtree <- confusionMatrix(gbmresult, testing$classe)
+cmtree2 <- confusionMatrix(ldaresult, testing$classe)
+```
+
+```{r}
+print(cmtree$overall['Accuracy'])
+print(cmtree2$overall['Accuracy'])
+```
+
+Compare the two models accuracy, I see that gbm has such a high accuracy with the testing set. So I went with the gbm approach to predict the validation set.My result returns 100% when I completed the quiz.
+
+```{r}
+gbmresult1 <- predict(mod2,validation)
+print(gbmresult1)
+```
